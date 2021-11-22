@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Document</title>
+  <link rel="icon" href="https://avatars.githubusercontent.com/u/63767045?s=200&v=4" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge,chrome=1" />
   <meta name="description" content="Description">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0">
@@ -14,24 +15,21 @@
   <div id="app"></div>
   <script>
   window.$docsify = {
+  	name: 'be-specification',
+    repo: 'https://github.com/rankingcong/be-specification',
+    coverpage: true, 
   	maxLevel: 2, 
-    search : [
-      '/',            // => /README.md
-      '/guide',       // => /guide.md
-      '/get-started', // => /get-started.md
-      '/zh-cn/',      // => /zh-cn/README.md
-    ],
+    search : {
+    	path: 'auto', 
+    	placeholder: '🔍 搜索 ', 
+    }, 
     count:{
         countable:true,
         fontsize:'0.9em',
         color:'rgb(90,90,90)',
         language:'chinese'
     }, 
-    toc: {
-      scope: '.markdown-section',
-      headings: 'h3, h4',
-      title: 'Table of Contents',
-    },
+    
   }
   </script>
   <script src="https://eqcn.ajz.miesnfu.com/wp-content/plugins/wp-3d-pony/live2dw/lib/L2Dwidget.min.js"></script>
@@ -67,6 +65,5 @@
   <script src="//cdn.jsdelivr.net/npm/docsify/lib/plugins/search.min.js"></script>
   <script src="//unpkg.com/docsify-count/dist/countable.js"></script>
   <script src="//cdn.jsdelivr.net/npm/docsify-copy-code/dist/docsify-copy-code.min.js"></script>
-  <script src="https://unpkg.com/docsify-toc@1.0.0/dist/toc.js"></script>
 </body>
 </html>
