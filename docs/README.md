@@ -1,21 +1,18 @@
 # 规范约束
 
+## 引言
+
+强行要求的规范，往往带来的实际效果不好，甚至起到负面效果。所以，本篇仅推荐给对自己有要求，希望能够学习到什么简洁有力的项目结构，本篇内容不存在最终版本一说，就像本文存在缺陷会不断更新，我愿同你一起成长，也欢迎你为本文提交新的内容。
+
 ## 业务说明
 
 indicator 名为指标，在项目的数据表设计中，该名称对应的数据表存储的是指标树的一个一个节点以及对应所属关系（pid），存在树型的层级结构，树型的每一层都是和业务紧密关联的：根 → 类别 → 维度 → 指标 → 变量，主要有这几个层次级别，其中 `指标` 这两个字就会经常出现歧义，如 指标id 可以表示指标表任意一条数据的id，也可以表示指定层级的指标的id；所以在项目的源码注释或是沟通上经常可以看见这样的描述，`指标 - 指标`、`指标（狭义）` 来特指指标层面的指标节点
 
-目前项目数据表中 indicator、ranking_type 存储的数据结构是树状结构，树状结构有如下特征
+项目数据表中 indicator、ranking_type 存储的数据结构是树状结构，树状结构的节点数据结构有如下特征
 
 - pid
 
 - path
-
-  ```go
-  // 应该实现的方法，这样在调用的代码逻辑中就可以方便的根据 path 获取指定级别的父级id了
-  func (x Xxx) GetPath() help.Path {
-      return help.Path(x.Path)
-  }
-  ```
 
 - level
 
@@ -26,100 +23,31 @@ go 中不推荐空格的源码编排风格，go fmt 命令会将所有的空格�
 - 注释 `\\` 和注释内容之间都应该有一个空格
 - `conf` 配置文件中支持的注释语法有两种 `#` `;`，约定前者为大模块注释，后者为小模块注释
 
-## 目录结构
-
-|                       | beego 生成 | 说明                                                         |
-| --------------------- | ---------- | ------------------------------------------------------------ |
-| conf                  | true       |                                                              |
-| routers               | true       |                                                              |
-| docs                  | true       |                                                              |
-| tests                 | true       |                                                              |
-|                       |            |                                                              |
-| controllers           | true       |                                                              |
-| controllers/internals | false      | 一些内部的，不提供给前端开发人员的接口。如果数据维护、刷新缓存等 |
-|                       |            |                                                              |
-| models                | true       | 最简单纯净的数据表实体                                       |
-| models/internal       | false      | 项目中定义的能够根据数据表自动生成 Go 数据实体源码的 Groove 脚本，生成的数据实体 |
-| models/const          | false      | 常量、枚举；数据表中特定业务含义数据的指定字段值等           |
-| models/bo             | false      | 带有复杂业务逻辑处理方法的结果集实体，即使会直接作为结果集返回，也不应该放到 dto 中 |
-| models/dto            | false      | 接口结果集实体（包的循环依赖：不定义实体转换方法）           |
-| models/form           | false      | 接口参数实体                                                 |
-|                       |            |                                                              |
-| repo                  | false      | DAO                                                          |
-|                       |            |                                                              |
-| usercase              | false      | 业务处理                                                     |
-|                       |            |                                                              |
-| module                | false      | 独立模块（不含 dao 的数据交互操作，如果含有，整个模块应该放到 usercase 下） |
-| filter                | false      | 拦截器                                                       |
-| help                  | false      | 工具类                                                       |
-
-## 部署更新
-
-传统项目部署的痛点有，构建的二进制包体积大，构建时间长 + 上传时间长、项目运行环境多（不同环境的配置文件，具体参数项，差异较大），但是目前均未有这样的问题，故项目的部署更新模式，还是以全过程手动操作为主。
-
-服务器上的项目部署更新，要求有一个好习惯，就是将一定时间内的二进制程序包，保留下来，以应对新程序包出问题时，能够立马回滚，保证服务的可用。
-
-综上，参考当前项目中的 `buildupx.bat` 构建脚本（Windows 操作系统下，可直接运行）
-
-```
-@echo off
-set proj_name=项目名
-set ts=%date:~2,2%%date:~5,2%%date:~8,2%.%time:~0,2%%time:~3,2%%time:~6,2%
-set ts=%ts: =0%
-set exe_name=%proj_name%-%ts%.exe
-set upx_name=%proj_name%-%ts%-upx.exe
-go build -o %exe_name% && upx -9 -o %upx_name% %exe_name% && rm %exe_name%
-```
-
-注意，在最后构建，还做了一个压缩，`upx` 是一个开源的二进制文件压缩工具
-
 ## 命名规范
 
-### 慎用 `test`
+### 包名
+
+**慎用 `test`**
 
 用于代表测试代码的源码文件 `xxx_test.go` 中定义的公共变量、常量，其他源码文件无法获取引用
 
-`beego` 中包名为 `test` 的包，中的 Controller 会被忽略
+`beego` controller/test 中的 Controller 会被忽略
 
-### 文件命名（业务）
+**善用 `internal`**
 
-指标表 狭义指标 id：indLevelId
-
-指标表 狭义变量 id：indLevelVarId
-
-变量表 变量 id：indVarIds | varIds
+不希望，也不应该对外暴露的包，应该将其命名为 `internal`
 
 ### 文件命名
 
-包名所对应的含义应该利用好，即不应该有如：`包名_文件名.go` 或 `文件名_包名.go`
+不应该有如：`包名_文件名.go` 或 `文件名_包名.go` 的命名风格
 
-### 变量命名
-
-**Receiver（层）**
-
-c *XxxController、u *XxxUsercase、r *XxxRepo
-
-**Receiver（表单实体）**
-
-f *Xxx、f *QXxx
-
-**SQL**
-
-q := ...
-
-b := strings.Builder{}
-
-### 结构体命名
-
-除了三大层 `XxxController`、`XxxUsercase`、`XxxRepo`，其他例如 `form` 包下 和 `dto` 包下的结构体类型都不应该再带有后缀了
-
-参数实体：`Xxx`、`QForm`
+如希望代表 `xxx` 模块的接口定义文件，应该命名为 `i_xxx.go`
 
 ### 通道变量名
 
-仅用作信号通道，传输的数据没有实际含义时，命名为：`xxxSignal`
+仅用作信号通道，传输的数据没有实际含义时，命名为：`xxxSig`
 
-通道传输的数据有实际含义时，命名为：`xxxChannel`
+通道传输的数据有实际含义时，命名为：`xxxChan`
 
 ### 枚举类型命名
 
@@ -168,29 +96,11 @@ func (e Enum) Valid() bool {
 
 ### 方法命名
 
-#### DTO
-
-一般，repo 层查询的数据含有 json 结构的数据，需要反序列化；或是包含一些数据操作处理，那应该在 dto 实体所在源码文件中定义 Parse 方法进行处理，见下边定义
-
- `(d *dto.Xxx) Parse(*models.Xxx)`
-
-``(d *dto.Xxx) Parse()`
-
-`ParseXxxs([]*models.Xxx)[]*dto.Xxx`
-
-`ParseXxxs([]*dto.Xxx)`
-
 #### DAO
-
-> 本着 `usercase` 层方法的方法名可以简化承载业务含义，而 repo 层方法仅义如名，一般不含业务含义的大体方向；但若方法确实包含比较重的业务含义也就不应该按照下面的规则，起一个业务含义名称即可
 
 `<Find | List> [Part | DTO] By XxxAnd...`
 
-（条件一般不超过两个，超过两个需要适当将条件单词简写，以避免方法名过长）
-
-**说明**
-
-Find 或 List 分别代表查询一个或列表，允许 `ById` 简写
+Find 或 List 分别代表查询 单条数据 或 列表，允许 `ById` 简写
 
 Part 或 DTO 代表查询的内容，不写代表查全了
 
@@ -200,7 +110,7 @@ Part 或 DTO 代表查询的内容，不写代表查全了
 
 查询列表：`ListByIds`、`ListPartByIds`、`ListDTOByIds`
 
-> `beego orm` 提供操作方法，方法名为：`Insert`、`Update`、`Delete`
+> `beego orm` 默认提供的方法：`Insert`、`Update`、`Delete`
 
 保存或更新：`Upsert`
 
@@ -208,23 +118,97 @@ Part 或 DTO 代表查询的内容，不写代表查全了
 
 更新：`UpdateOne`
 
-**拓展**
+**小结**
 
-服务层要建立接口实现的层次结构，`dao` 视情况而定，如果和业务强相关的查询多了，就设定接口层次
+方法名尽量保证简明易懂，逻辑、条件比较复杂的情况下，可以不用遵从该规则
 
-#### 树型节点
+### 特殊命名
 
-关于树型结构数据节点的通过 id 查询一条数据的方法（usercase 层面），FindById 方法可以添加一个可变参数的形参，当参数不为空时，就应该在方法中查询后，进行校验
+**三层**
 
-`FindById(id int64, expectLevel ...int) (*models.Xxx, error)`
+`XxxController struct（c *XxxController）`
 
-### 三方对接相关
+`xxxService struct（s *xxxService）`、`XxxService interface`、`NewXxxService`
 
-const：常量
+`xxxDao struct（d *xxxDao）`、`NewXxxDao`
 
-models：参数、响应 实体
+**参数实体**
 
-i_xxx：每个接口对接方法单独划分开来
+`Xxx struct（f *Xxx）`
+
+**SQL**
+
+`q := 'SELECT ...'`
+
+`b := strings.Builder{}`
+
+`p := make([]interface{}, n)`
+
+## 项目结构
+
+### Beego
+
+|                       | beego 生成 | 说明                                                         |
+| --------------------- | ---------- | ------------------------------------------------------------ |
+| conf                  | true       |                                                              |
+| routers               | true       |                                                              |
+| docs                  | true       |                                                              |
+| tests                 | true       |                                                              |
+|                       |            |                                                              |
+| controllers           | true       |                                                              |
+| controllers/internals | false      | 一些内部的，不提供给前端开发人员的接口。如果数据维护、刷新缓存等 |
+|                       |            |                                                              |
+| models                | true       | 最简单纯净的数据表实体                                       |
+| models/internal       | false      | 项目中定义的能够根据数据表自动生成 Go 数据实体源码的 Groove 脚本，生成的数据实体 |
+| models/const          | false      | 常量、枚举；数据表中特定业务含义数据的指定字段值等           |
+| models/bo             | false      | 带有复杂业务逻辑处理方法的结果集实体，即使会直接作为结果集返回，也不应该放到 dto 中 |
+| models/dto            | false      | 接口结果集实体（包的循环依赖：不定义实体转换方法）           |
+| models/form           | false      | 接口参数实体                                                 |
+|                       |            |                                                              |
+| repo                  | false      | DAO                                                          |
+|                       |            |                                                              |
+| usercase              | false      | 业务处理                                                     |
+|                       |            |                                                              |
+| module                | false      | 独立模块（不含 dao 的数据交互操作，如果含有，整个模块应该放到 usercase 下） |
+| filter                | false      | 拦截器                                                       |
+| help                  | false      | 工具类                                                       |
+
+### Gin
+
+|            | 必须  | 说明                                                         |
+| ---------- | ----- | ------------------------------------------------------------ |
+| base       | true  | 和业务无关的基础模块父目录                                   |
+| - config   | true  | 配置文件到  Go struct 实例映射                               |
+| - constant | true  | 枚举、常量                                                   |
+| - dao      | true  | MySQL 数据交互（基于 sqlx 封装了 事务、日志、自定义错误处理、动态 sql 拓展） |
+| - errs     | true  | 通用错误定义、处理                                           |
+| - filter   | true  | 拦截器（鉴权、IP 白名单、请求日志打印）                      |
+| - log      | true  | 基于 zap 的日志模块（包含请求日志的打印方法）                |
+| - server   | true  | 项目启动（grace close）                                      |
+| - validate | true  | 对于有繁多的数据校验需求，可以使用该模块来简化开发流程       |
+| cache      | false | 内存缓存；某些数据在逻辑上相当重要，使用频繁，作为单独的数据模块进行管理 |
+| controller | true  |                                                              |
+| service    | true  |                                                              |
+| dao        | true  |                                                              |
+| model      | true  |                                                              |
+| - do       | false | 数据表实体；一定有 db 标签，可以没有 json 标签               |
+| - bo       | false | 业务实体；可以有 json 标签                                   |
+| - dto      | false | 接口响应实体；一定有 json 标签（当 dto 需要被多处引用时，应该将其提升为 bo） |
+| - form     | false | 接口参数实体；有 uri 或 json 标签（不推荐 form，即表单，除非是文件上传场景） |
+| - const    | false | 之所以使用关键字作为包名是希望子级都单独创建包               |
+| module     | false | 业务模块；service 不允许引用 module，避免循环依赖问题        |
+| router     | true  | controller 的注册中心                                        |
+| util       | true  | 和业务无关的工具类                                           |
+
+**改进方向**
+
+`config` 含有业务概念
+
+`errs`  含有业务概念
+
+`filter` 含有业务概念
+
+`validate` 属于工具
 
 ## 接口规范
 
@@ -238,13 +222,13 @@ i_xxx：每个接口对接方法单独划分开来
 
   JSON（不推荐 FormData）
 
-  前端的 axios 库、各大厂商的开放 api，接口参数默认都是 JSON 格式
+  >  前端的 axios 库、各大厂商的开放 api，接口参数默认都是 JSON 格式
 
-  与其用内部约定好的数据格式（逗号隔开的字符串），就不如使用通用的 JSON 强类型格式来的实在
+  > 与其约定好的数据格式（逗号隔开的字符串），就不如使用共识的 JSON 格式
 
 - PATCH
 
-  JSON - 更新部分字段：如，状态
+  JSON - 更新部分字段
 
 - PUT
 
@@ -256,77 +240,17 @@ i_xxx：每个接口对接方法单独划分开来
 
 ### 参数校验
 
-仅限于开发阶段会出现的错误，参数非空提示：`param xxx can not be empty`，前端应该根据该提示，了解到哪些参数是必填的，只有有值才能发起请求；而不是，直接将响应的英文作为用户的提示
+在简单非业务的参数校验上去编写重复的代码，本身就是低效，无意义的做法，此时应该使用相关的校验类库去做这些事情
 
-推荐在符合以下条件的接口参数使用参数实体，结合 `beego` 的 `validation.ValidFormer`，配置校验解析方法去做参数初步处理
+> beego
 
-不推荐使用 `form` 标签去做校验，因为设计理念不合理，提示的字段名是错的
+因为 beego 不再是后续项目开发的基础框架选行，故不展开说了
 
-- 在接口参数预计会大于 3 个
+需要配置翻译、以及，结合 `beego` 的 `validation.ValidFormer`
 
-- 有较为复杂的基本校验规则时（如，数字需要限定在一定范围内、电话号码等）
+> gin
 
-- 参数需要初步解析才能使用（如，base64 编码、内容为逗号隔开的多个元素字符串等）
-
-> 目前 `BaseController` 提供了 `ParseFormAndValidate` 和 `ParseJsonAndValidate` 方法
-
-### 查询条件（分页）
-
-先列举两个实际业务场景中的参数实例
-
-1. 分页参数
-2. 搜索条件：多个字段，空格隔开
-3. 动态响应条件字段：多个字段，英文逗号隔开
-
-**样例**
-
-直接将项目中源码贴出来；
-
-需要特别提及的是，`strings.Split("", " ")` 返回的是 `[""]（len = 1）`，所以非空判断是为了特意保持 nil 值
-
-如果传参方式是 `formData` 则标签是 `form`；如果传参方式是 `json`，则标签是 `json`
-
-```go
-package form
-
-import (
-	"github.com/beego/beego/v2/core/validation"
-	"rankingbase-api/help"
-	"strings"
-)
-
-type IndVarDetailRoot struct {
-	Search        string `form:"search"`        // 逗号隔开
-	Include       string `form:"include"`       // 需要接口返回的额外信息；include=indVar,detailDef 则返回对应的变量信息，及明细样式定义
-	Limit         int    `form:"limit"`         // 每页数据量（默认10）
-	Page          int    `form:"page"`          // 页码（默认1）
-
-	SearchFields  help.StrSlice
-	IncludeFields help.StrSlice
-}
-
-func (f *IndVarDetailRoot) Valid(v *validation.Validation) {
-	if f.Limit == 0 {
-		f.Limit = DefaultLimit
-	}
-	if f.Page == 0 {
-		f.Page = DefaultPage
-	}
-	if f.Limit < 1 {
-		_ = v.SetError("limit", "param limit illegal")
-	}
-	if f.Page < 1 {
-		_ = v.SetError("page", "param page illegal")
-	}
-
-	if len(f.Search) != 0 {
-		f.SearchFields = strings.Split(f.Search, " ")
-	}
-	if len(f.Include) != 0 {
-		f.IncludeFields = strings.Split(f.Include, ",")
-	}
-}
-```
+基于 gin 现有的基础模块 `base/controller.go` 已经封装好了，直接可以使用的接口参数校验方法；集成中文和英文两种翻译规则的翻译，以及自定义校验标签的集成拓展
 
 ## 接口文档
 
@@ -334,9 +258,13 @@ func (f *IndVarDetailRoot) Valid(v *validation.Validation) {
 
 - 页面列表
 
-  页面 X1：需要调用的接口...，链接到接口列表
+  页面 1：需要调用的接口链接列表
+
+  页面 2：需要调用的接口链接列表
 
   ...
+
+- 接口列表
 
 - 接口 A
 
@@ -366,11 +294,11 @@ func (f *IndVarDetailRoot) Valid(v *validation.Validation) {
 
 当产品提出新的需求，业务进行迭代，除了更新主接口文档，还应该创建编写一份变更文档来进行说明
 
-### 总结
+### 其他
 
-本文档不是最终形式，会持续更新
+暂无严格要求，文档旨在将业务和每个接口设计说清楚，如果文档能以一定的结构阐述清楚，以上规则可无视
 
-部门暂无严格要求，文档旨在将业务和每个接口设计说清楚，如果文档能以一定的结构阐述清楚，以上规则可无视
+部门现在正在尝试 `ApiFox`、`ApiPost` 等接口管理的三方解决方案
 
 ## 数据表设计
 
@@ -383,35 +311,47 @@ func (f *IndVarDetailRoot) Valid(v *validation.Validation) {
 
 > (a) /Scratches and Consoles/Extensions/Database Tools and SQL/schema/Copy as Go struct.groovy
 
-> (b) 框选想要操作的表 → 右键 → Scripted Extensions → Copy as Go struct.groovy → 剪切板中就存有了 orm 实体定义
+> (b) 框选想要操作的表 → 右键 → Scripted Extensions → Copy as Go struct.groovy → 剪切板中就存有了实体定义
 
 **具体规则**
 
-| 维度                   | 概念                                                         |
-| ---------------------- | ------------------------------------------------------------ |
-| 所有键：主键id、关联键 | GO 类型：int64、MySQL 类型：int                              |
-| 字段是否为空           | GO 语言中所有基础数据类型都有零值，所以当要表示无意义的空值时，应将字段类型改为特定类型对应的指针类型 |
-| 枚举                   | 得到枚举名称 → SELECT xxx<br />得到枚举序号 → SELECT xxx + 0 AS xxx |
+| 维度         | 概念                                                         |
+| ------------ | ------------------------------------------------------------ |
+| 整型键       | GO 类型：int64、MySQL 类型：int                              |
+| 字段是否为空 | GO 语言中所有基础数据类型都有零值，所以当要表示无意义的空值时，应将字段类型改为特定类型对应的指针类型 |
+| 枚举         | 得到枚举名称 → SELECT xxx<br />得到枚举序号 → SELECT xxx + 0 AS xxx |
 
 [beego]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20beego.groovy
 [sqlx]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20sqlx.groovy
 
+## Service
+
+**树型节点**
+
+关于树型结构数据节点的通过 id 查询一条数据的方法（service 层），`FindById` 方法可以添加一个可变参数的形参，当参数不为空时，就应该在方法中查询后，进行校验
+
+`FindById(id int64, expectLevel ...int) (*models.Xxx, error)`
+
+## Dao
+
 ### JSON 类型
 
-**实体定义**
+**结果集映射**
 
-表字段
+一般，查询出的数据结构可能是含有 JSON 数据结构的数据，需要将其反序列化为实体；首先，需要创建 JSON 数据结构对应的 struct 实体
 
-```
-xxx_info JSON NULL COMMENT 'xxx数据
-```
+> beego
 
-实体字段
+只能手动处理；定义两个字段，一个冗余存储中间结果
 
 ```
-XxxInfoJSON string   `orm:"xxx_info" json:"-"`
-XxxInfo     *XxxInfo `orm:"-"        json:"xxxInfo"`
+XxxJSON string `json:"xxx"`
+Xxx     *Xxx   `json:"-"`
 ```
+
+> sqlx
+
+可以通过为字段类型实现 `sql.Scanner` 接口，来达到自动填充结构体的效果
 
 **插入**
 
@@ -437,137 +377,7 @@ UPDATE xxx SET xxx_info = JSON_SET(IFNULL(xxx_info, JSON_OBJECT(), '$.name', ?, 
 
 假如 JSON 字段中，存在 Object 类型的字段，那么这个创建的实体是不需要像上面实体定义规则一样定义两个字段（为该实体定义 `orm` 标签本就是无意义的），因为这个实体不是数据表实体，不会直接面都 `bee orm` 的操作层，只有直面的才需要这样处理，才能确保数据能够查询出来
 
-## Git 版本管理
-
-### commit message
-
-```markdown
-feat:     增加新功能
-change:   功能变动
-fix:      修复bug
-
-style:    不影响代码含义的改动，例如去掉空格、改变缩进、增删分号、修改变量名、将魔法值抽取成常量、修改注释等
-docs:     只改动了文档相关的内容
-
-refactor: 代码优化、代码重构
-perf:     提高性能的改动
-
-build:    go.mod 中类库的版本升级
-test:     添加测试或者修改现有测试
-```
-
-特殊说明，补交能紧接着遗失的提交，就不需要标签，否则标记为 Fix
-
-### Changelist 
-
-关闭线上的一些严格的校验规则、修改一些框架文件或日志文件等的生成目录配置等的本地开发的非跟踪的文件改动，一般会使用 IntelliJ 的 CVS 提供的 `Changelist` 功能，但是需要注意，假如非提交 `Changelist` 暂存的内容和实际开发需要提交的代码有重叠，提交时就会被忽略！！！
-
-## 技术点
-
-### Graceful
-
-当定义了任何 **异步** 的后台任务机制，都需要考虑在程序结束时的任务防丢
-
-（beego 开启 `Graceful = true` 选项，当请求没有处理完程序是不会结束的）
-
-### 临时文件管理
-
-这里对一些动态生成的文件进行生成位置上的更改说明，如果你也有将所有临时文件、生成文件放在一个统一文件夹中管理的习惯，可以像下边这样做
-
-- **lastupdate.tmp**
-
-  默认位置：项目目录下
-
-  修改：修改 beego 的源码  `%GOPATH%\pkg\mod\github.com\beego\beego\v2@v2.0.1\server\web\parser.go` 中 `lastupdateFilename` 变量的值
-
-  举例：`target/lastupdate.tmp`
-
-- **go_build_项目名.exe**
-
-  默认位置：项目目录下
-
-  修改：修改项目运行配置中的 `Output directory` 项
-
-  举例：`项目所在目录的绝对路径\target`
-
-- **logs**
-
-  配置位置
-
-  ```go
-  logs.SetLogger(logs.AdapterFile, fmt.Sprintf(`{"filename":"target/logs/%s.log", "maxdays":15}`
-  ```
-
-### orm 日志
-
-在 `Beego 2.0`，中如果希望接口服务实例记录输出所有执行的 SQL 日志，那么需要为 `github.com/beego/beego/v2/client/orm.Debug` 赋值为 `true`
-
-特别说明，`Beego` 在更新至 2.0 后，原先许多重要模块都有发生不同程度的改变，其中原来在 1.0 中使用事务的方式（参照最佳实践），到了 2.0 中行为发生了改变，SQL 日志不再打印
-
-核心代码位置
-
-```
-# 重要代码位置
-github.com/beego/beego/v2@v2.0.1/client/orm/orm.go:477 (o *ormBase) Raw
-github.com/beego/beego/v2@v2.0.1/client/orm/orm_raw.go:86 (o *rawSet) Exec
-
--- 为什么不打印日志？
-因为调用了 Begin 方法后，内部，一个事务标识的 bool 值会变为 true，然后最终会导致下面执行 Exec 的实例类型不同，也就产生了打印日志上的行为差异
-
--- 非事务
-Exec 方法 client/orm.(*dbQueryLog).Exec → ExecContext client/orm/orm_log.go:144 打印日志
-
--- 开启事务
-Exec 方法 client/orm.(*TxDB).Exec → ExecContext client/orm/db_alias.go:250 不打印日志
-```
-
-## 最佳实践
-
-### 配置文件
-
-为了业务的发展和需求的迭代，拓展和统一入口，会将一些模块组件的策略放到配置文件中。但是，为了安全，配置文件是不能放到代码仓库中管理的，所以配置文件内容如果有新增一定要注意落实
-
-凡是提供业务数据接口服务的后端，都会需要一个映射核心配置文件的变量实例，来方便获取配置项；几乎所有主流开发语言的项目框架都会提供这样一个机制
-
-Beego 会将从 `conf/app.conf`（注意，配置文件的路径和名字是死的，这也造成后期拓展到 `app.yaml` 遇到阻碍） 中读取到的配置，加载到 `web.AppConfig` → `web.BConfig`
-
-虽然可以通过 `web.AppConfig.Xxx("xxx")` 获取配置文件中的任意配置项，但是没有配置项大纲的提示，总是不合适的，所以，肯定需要自定义配置项到自定义配置实体的映射，因此由项目早期负责人利用 Go 的反射机制，实现了将 `web.AppConfig` 中配置项读取到自定义实体的逻辑（逻辑放在 `init` 函数中），并在没有读取到配置实体对应的配置项时抛出异常，以提示后端开发人员核对配置项
-
-**改进（配置文件格式）**
-
-随着业务的持续发展迭代，项目的配置项可能越来越多，简单的 `ini` 配置形式的配置文件逐渐体现出弊端：可读性差（无法体现出配置的层级关系）、不好维护管理（配置名冗长）
-
-因此，引出 `yaml` 格式的配置文件，使用一些现成的三方包，能够轻松的做到，将 `yaml` 的数据映射到配置实体中；但是问题也来了，Beego 默认的配置文件是写死的，所以只能在主要使用 `yaml` 格式的配置文件基础上，同时保留 Beego 的原生配置 `app.conf`
-
-**修正（配置文件位置）**
-
-> 前置：运行路径的影响
-
-并且在项目中白那些某些 test 的时候，或多或少都会使用工具包下的方法，而自定义配置文件配置数据到配置实体的逻辑就在工具包下，这时，就会因为执行路径的响应，导致无法读取到配置文件报错
-
-因此，应当将配置文件的读取逻辑放置到单独的模块目录，这样使用工具包就不会有各式各样的问题了
-
-### 分页
-
-分页查询的结果一般包含总数，以及当前页的数据，这里存在简单的优化准则，先查询得到数量，如果发现查询得到的数量为 0，则不应该再进行数据库的数据查询
-
-### 线上下路由
-
-因为默认服务端架构都会采用一个网关中间件，网关中间件又需要区分请求是访问前端资源还是后端接口数据，因此，后端数据接口的访问地址会变为：`http://127.0.0.1:8080/v1/userinfo` → `https://xxx.xxx.xxx/api/v1/userinfo`（多了 `api`）
-
-### 加密
-
-> 详见 [私有仓库](#私有仓库)
-
-目前，前后端约定好了一种对称加密的方法，所有需要涉及重要隐私权限的地方都需要使用到该加密规则
-
-使用需要引入 `github.com/shanghairanking/helper v0.0.2`
-
-注意，和前端对接时，`enc.NewAESCipher(密钥, openSSL)`的 `openSSL` 需要指定为 true，因为前端加密的方法默认是使用 `openSSL` 的
-
-### Dao
-
-#### 基础
+### 基础
 
 **查询一条（QueryRow）**
 
@@ -597,7 +407,7 @@ Beego 会将从 `conf/app.conf`（注意，配置文件的路径和名字是死�
 
 `2.0 client/orm`：也有定义同名的错误实例
 
-#### 事务
+### 事务
 
 文档作者，在大半年的开发实践中，经常会使用在方法局部开头声明接下来要使用变量的方式，使得代码结构更为工整，提高代码的可读性，其中最常定义（几乎是必声明）的就是 `error` 类型的变量，于是便将原来的基于一个 `bool` 类型事务提交标识值，改为 `error` 类型；实际调用：
 
@@ -613,7 +423,7 @@ defer help.HandlerDBTransaction(o, &err)
 repo.NewXxxRepo(o).Xxx......
 ```
 
-#### 场景注意
+### 场景注意
 
 **查询**
 
@@ -656,9 +466,8 @@ repo.NewXxxRepo(o).Xxx......
   	id = ?
   ```
 
-  
 
-#### 批处理
+### 批处理
 
 **批量插入**
 
@@ -742,7 +551,7 @@ func (r *xxx) BatchUpdate(userId int64, xxxs []xxx.Xxx) error {
 }
 ```
 
-#### 主库
+### 主库
 
 如果项目中有用到主库的数据，要注意和项目关联较大库的查询表名前边一定要带有库名
 
@@ -750,22 +559,202 @@ func (r *xxx) BatchUpdate(userId int64, xxxs []xxx.Xxx) error {
 
 对于应用来说，切换数据库就是修改配置文件中配置的数据库名（默认这些数据库都是存放在一个 MySQL 服务端程序中的），因为查询中没有指定数据库名的表查询，默认就是应用这个数据库，为了实现综上所述，在进行和项目应用本身相关程度比较大的那个数据库的查询的表名前面应该都带上这个数据库的名称，具体表现在 `FROM` 和 `JOIN` 关键字后边的表名
 
+> 现采用了 公共资源服务实例 和 动态表名 机制来处理这样的数据变更、切换机制了
+
+## 构建部署
+
+传统项目部署，有构建的二进制包体积大、构建时间长、上传时间长、项目运行环境多（不同环境的配置文件，具体参数项，差异较大）等痛点。
+
+目前暂未有这样的问题，故项目的部署更新模式，还是以全过程手动操作为主。
+
+服务器上的项目部署更新，要求有一个好习惯，就是将一定时间内的二进制程序包，保留下来，以应对新程序包出问题时，能够立马回滚，保证服务的可用。
+
+综上，参考当前项目中的 `buildupx.bat` 构建脚本（Windows 操作系统下，可直接运行）
+
+```
+@echo off
+set proj_name=项目名
+set ts=%date:~2,2%%date:~5,2%%date:~8,2%.%time:~0,2%%time:~3,2%%time:~6,2%
+set ts=%ts: =0%
+set exe_name=%proj_name%-%ts%.exe
+set upx_name=%proj_name%-%ts%-upx.exe
+go build -o %exe_name% && upx -9 -o %upx_name% %exe_name% && rm %exe_name%
+```
+
+注意，在最后构建，还做了一个压缩，`upx` 是一个开源的二进制文件压缩工具
+
+## Git 版本管理
+
+### commit message
+
+```markdown
+feat:     增加新功能
+change:   功能变动
+fix:      修复bug
+
+style:    不影响代码含义的改动，例如去掉空格、改变缩进、增删分号、修改变量名、将魔法值抽取成常量、修改注释等
+docs:     只改动了文档相关的内容
+
+refactor: 代码优化、代码重构
+perf:     提高性能的改动
+
+build:    go.mod 中类库的版本升级
+test:     添加测试或者修改现有测试
+```
+
+特殊说明，补交能紧接着遗失的提交，就不需要标签，否则标记为 Fix
+
+### Changelist 
+
+关闭线上的一些严格的校验规则、修改一些框架文件或日志文件等的生成目录配置等的本地开发的非跟踪的文件改动，一般会使用 IntelliJ 的 CVS 提供的 `Changelist` 功能，但是需要注意，假如非提交 `Changelist` 暂存的内容和实际开发需要提交的代码有重叠，提交时就会被忽略！！！
+
+## 最佳实践
+
+### 配置文件
+
+为了业务的发展和需求的迭代，拓展和统一入口，会将一些模块组件的策略放到配置文件中。但是，为了安全，配置文件是不能放到代码仓库中管理的，所以配置文件内容如果有新增一定要注意落实
+
+凡是提供业务数据接口服务的后端，都会需要一个映射核心配置文件的变量实例，来方便获取配置项；几乎所有主流开发语言的项目框架都会提供这样一个机制
+
+Beego 会将从 `conf/app.conf`（注意，配置文件的路径和名字是死的，这也造成后期拓展到 `app.yaml` 遇到阻碍） 中读取到的配置，加载到 `web.AppConfig` → `web.BConfig`
+
+虽然可以通过 `web.AppConfig.Xxx("xxx")` 获取配置文件中的任意配置项，但是没有配置项大纲的提示，总是不合适的，所以，肯定需要自定义配置项到自定义配置实体的映射，因此由项目早期负责人利用 Go 的反射机制，实现了将 `web.AppConfig` 中配置项读取到自定义实体的逻辑（逻辑放在 `init` 函数中），并在没有读取到配置实体对应的配置项时抛出异常，以提示后端开发人员核对配置项
+
+**改进（配置文件格式）**
+
+随着业务的持续发展迭代，项目的配置项可能越来越多，简单的 `ini` 配置形式的配置文件逐渐体现出弊端：可读性差（无法体现出配置的层级关系）、不好维护管理（配置名冗长）
+
+因此，引出 `yaml` 格式的配置文件，使用一些现成的三方包，能够轻松的做到，将 `yaml` 的数据映射到配置实体中；但是问题也来了，Beego 默认的配置文件是写死的，所以只能在主要使用 `yaml` 格式的配置文件基础上，同时保留 Beego 的原生配置 `app.conf`
+
+**修正（配置文件位置）**
+
+> 前置：运行路径的影响
+
+并且在项目中白那些某些 test 的时候，或多或少都会使用工具包下的方法，而自定义配置文件配置数据到配置实体的逻辑就在工具包下，这时，就会因为执行路径的响应，导致无法读取到配置文件报错
+
+因此，应当将配置文件的读取逻辑放置到单独的模块目录，这样使用工具包就不会有各式各样的问题了
+
+### 分页
+
+分页查询的结果一般包含总数，以及当前页的数据，这里存在简单的优化准则，先查询得到数量，如果发现查询得到的数量为 0，则不应该再进行数据库的数据查询
+
+### 线上下路由
+
+因为默认服务端架构都会采用一个网关中间件，网关中间件又需要区分请求是访问前端资源还是后端接口数据，因此，后端数据接口的访问地址会变为：`http://127.0.0.1:8080/v1/userinfo` → `https://xxx.xxx.xxx/api/v1/userinfo`（多了 `api`）
+
+### 加密
+
+> 参照 [私有仓库](#私有仓库)
+
+目前，前后端约定好了一种对称加密的方法，所有需要涉及重要隐私权限的地方都需要使用到该加密规则
+
+使用需要引入 `github.com/shanghairanking/helper v0.0.2`
+
+注意，和前端对接时，`enc.NewAESCipher(密钥, openSSL)`的 `openSSL` 需要指定为 true，因为前端加密的方法默认是使用 `openSSL` 的
+
 ### 错误处理
 
-所有的错误处理都放在 `usercase` 层中，因为这一层是不可能避免处理错误的，就不如统一处理；且在 `dao` 层处理，处理的错误提示太抽象
+所有的错误处理都放在 `service` 层中，因为这一层是不可能避免处理错误的，就不如统一在这处理；在 `dao` 层处理，处理的错误提示也不能定制，太抽象
 
-反：`dao` 方面复用，那些真的从数据库层报出的错误，真的没有必要一个一个去重复处理啊
+反：`dao` 层处理方便复用，那些真的从数据库层报出的错误，真的没有必要一个一个去重复处理啊
 
 正：`usercase` 中可以抽取提出 `dao` 层的同名方法进行校验，调用这个方法复用就行了
 
 反：那岂不是所有 `dao` 方法都要在 `usercase` 定义一个同名的错误处理，那导致的额外工作量太大了
 
-正：就实际开发的经验来说，能复用的 `dao` 方法也那就几个查询方法
+正：就实际开发的经验来说，能复用的 `dao` 方法并不多
 
 反：......
 
+## 技术点
+
+### Graceful
+
+当定义了任何 **异步** 的后台任务机制，都需要考虑在程序结束时的任务防丢，Grace 机制就是，当请求没有处理完程序是不会结束的
+
+> beego
+
+配置 `Graceful = true`
+
+> gin
+
+参照，官方样例
+
+### 临时文件管理
+
+这里对一些动态生成的文件进行生成位置上的更改说明，如果你也有将所有临时文件、生成文件放在一个统一文件夹中管理的习惯，可以像下边这样做
+
+- **lastupdate.tmp**
+
+  默认位置：项目目录下
+
+  修改：修改 beego 的源码  `%GOPATH%\pkg\mod\github.com\beego\beego\v2@v2.0.1\server\web\parser.go` 中 `lastupdateFilename` 变量的值
+
+  举例：`target/lastupdate.tmp`
+
+- **go_build_项目名.exe**
+
+  默认位置：项目目录下
+
+  修改：修改项目运行配置中的 `Output directory` 项
+
+  举例：`项目所在目录的绝对路径\target`
+
+- **logs**
+
+  配置位置
+
+  ```go
+  logs.SetLogger(logs.AdapterFile, fmt.Sprintf(`{"filename":"target/logs/%s.log", "maxdays":15}`
+  ```
+
+### SQL 日志
+
+在 `Beego 2.0`，中如果希望接口服务实例记录输出所有执行的 SQL 日志，那么需要为 `github.com/beego/beego/v2/client/orm.Debug` 赋值为 `true`
+
+特别说明，`Beego` 在更新至 2.0 后，原先许多重要模块都有发生不同程度的改变，其中原来在 1.0 中使用事务的方式（参照最佳实践），到了 2.0 中行为发生了改变，相关的 SQL 不再进行日志打印
+
+核心代码位置
+
+```
+# 重要代码位置
+github.com/beego/beego/v2@v2.0.1/client/orm/orm.go:477 (o *ormBase) Raw
+github.com/beego/beego/v2@v2.0.1/client/orm/orm_raw.go:86 (o *rawSet) Exec
+
+-- 为什么不打印日志？
+因为调用了 Begin 方法后，内部，一个事务标识的 bool 值会变为 true，然后最终会导致下面执行 Exec 的实例类型不同，也就产生了打印日志上的行为差异
+
+-- 非事务
+Exec 方法 client/orm.(*dbQueryLog).Exec → ExecContext client/orm/orm_log.go:144 打印日志
+
+-- 开启事务
+Exec 方法 client/orm.(*TxDB).Exec → ExecContext client/orm/db_alias.go:250 不打印日志
+```
+
+> 基于 gin 的基础架构封装，已经思考处理好了这个
+
 ## 私有仓库
 
-- GO PRIVATE
-- GO PROXY
-- 
+目前，项目中有打算将基础的方法、模块抽取到一个独立的二方库 `github.com/shanghairanking/helper` 中，这样，就不需要将相同的代码，四处拷贝了，方便统一管理和降低维护成本。对于该私有仓库，如果 `go get`、`go mod` 的相关命令无法拉取，可以考虑一下的解决方法
+
+**方法一**
+
+协议变更 HTTPS → GIT
+
+**方法二**
+
+设置 Go 的环境变量
+
+```
+GOPRIVATE=github.com/shanghairanking
+GONOPROXY=github.com/shanghairanking
+GONOSUMDB=github.com/shanghairanking
+```
+
+## 其他文档
+
+https://github.com/uber-go/guide/blob/master/style.md
+
+https://github.com/cristaloleg/go-advice/blob/master/README_ZH.md
+
+https://github.com/qichengzx/gopher-reading-list-zh_CN
