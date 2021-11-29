@@ -126,11 +126,13 @@ Part 或 DTO 代表查询的内容，不写代表查全了
 
 **三层**
 
-`XxxController struct（c *XxxController）`
+`type XxxController struct`、`（c *XxxController）`
 
-`xxxService struct（s *xxxService）`、`XxxService interface`、`NewXxxService`
+`type xxxService struct`、`（s *xxxService）`、`type XxxService interface`、`NewXxxService XxxService`
 
-`xxxDao struct（d *xxxDao）`、`NewXxxDao`
+`type xxxDao struct`、`（d *xxxDao）`、`NewXxxDao *xxxDao`
+
+> xxx 后面的层可以省略？最好不要省略，因为枚举定义规范中，包名就是其业务概念名，即 `xxx.Enum` 会和结构体 `type xxx struct` 发生名称冲突，只能在引用的地方给包名取别名
 
 **参数实体**
 
