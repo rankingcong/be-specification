@@ -23,6 +23,99 @@ go 中不推荐空格的源码编排风格，go fmt 命令会将所有的空格�
 - 注释 `\\` 和注释内容之间都应该有一个空格
 - `conf` 配置文件中支持的注释语法有两种 `#` `;`，约定前者为大模块注释，后者为小模块注释
 
+## 类型规范
+
+### 枚举
+
+在项目结构中了解到，静态概念都放在 `models/const` 包下，但是 `const` 同时也是 go 的关键字，综合考虑，决定采用包名表示枚举含义，所有具体的枚举类型都叫 `Enum`
+
+**拓展方法**
+
+```go
+var text = map[Enum]string {
+    Xxx1: "xxx1",
+    ...
+}
+
+type (e Enum) String() string {
+	return text[e]
+}
+
+type (e Enum) Valid() bool {
+    switch e {
+    case Xxx1, Xxx2, ...:
+        return true
+    default:
+        return false
+    }
+}
+
+type (e Enum) Value() <trueType> {
+    return trueType(e)
+}
+```
+
+**例一**（基础）
+
+```go
+// gender/enum.go
+package gender
+
+type Enum int
+
+const (
+    Female Enum = 0
+    Male   Enum = 1
+)
+```
+
+**例二**（复合）
+
+```go
+// fruit/enum.go
+package fruit
+
+type Enum struct {
+  Code int
+  Name string
+}
+
+var (
+  Apple      = Enum{code: 1, name: "苹果"}
+  WaterMelon = Enum{code: 2, name: "香蕉"}
+  // ...
+)
+```
+
+**例三**（多模块，单文件）
+
+```go
+// indicator/enum.go
+package indicator
+
+type LevelEnum int
+type IdEnum int64
+...
+```
+
+**例四**（多模块，多文件）
+
+```go
+// indicator/level.go
+package indicator
+
+type LevelEnum int
+...
+```
+
+```go
+// indicator/id.go
+package indicator
+
+type IdEnum int64
+...
+```
+
 ## 命名规范
 
 ### 包名
@@ -48,51 +141,6 @@ go 中不推荐空格的源码编排风格，go fmt 命令会将所有的空格�
 仅用作信号通道，传输的数据没有实际含义时，命名为：`xxxSig`
 
 通道传输的数据有实际含义时，命名为：`xxxChan`
-
-### 枚举类型命名
-
-在项目结构中了解到，静态概念都放在 `models/const` 包下，但是 `const` 同时也是 go 的关键字，综合考虑，决定采用包名表示枚举含义，所有具体的枚举类型都叫 `Enum`
-
-**举例**
-
-```go
-package gender
-
-type Enum int
-
-const (
-    Female Enum = 0
-    Male   Enum = 1
-)
-```
-
-```go
-package fruit
-
-type Enum struct {
-  Code int
-  Name string
-}
-
-var (
-  Apple      = Enum{code: 1, name: "苹果"}
-  WaterMelon = Enum{code: 2, name: "香蕉"}
-  // ...
-)
-
-func (e Enum) String() string {
-    return string(e)
-}
-
-func (e Enum) Valid() bool {
-    switch e {
-        case Apple, WaterMelon, ...:
-        	return true
-        default:
-        	return false
-    }
-}
-```
 
 ### 方法命名
 
@@ -336,49 +384,6 @@ Part 或 DTO 代表查询的内容，不写代表查全了
 
 ## Dao
 
-### JSON 类型
-
-**结果集映射**
-
-一般，查询出的数据结构可能是含有 JSON 数据结构的数据，需要将其反序列化为实体；首先，需要创建 JSON 数据结构对应的 struct 实体
-
-> beego
-
-只能手动处理；定义两个字段，一个冗余存储中间结果
-
-```
-XxxJSON string `json:"xxx"`
-Xxx     *Xxx   `json:"-"`
-```
-
-> sqlx
-
-可以通过为字段类型实现 `sql.Scanner` 接口，来达到自动填充结构体的效果
-
-**插入**
-
-> 提要：beego orm 层面操作，能与表中对应的字段类型，必须是 string；但是无论是表字段是 JSON 类型，还是 JSON 的字段是一个对象类型，在 SQL 中都需要体现出其类型
-
-```mysql
-INSERT xxx (xxx_info) VALUES
-// 例1
-(CAST(? AS JSON)),
-// 例2
-JSON_OBJECT('name', ?, "age", ?)
-```
-
-**更新**
-
-```
-UPDATE xxx SET xxx_info = JSON_SET(IFNULL(xxx_info, JSON_OBJECT(), '$.name', ?, '$.age', ?) WHERE ...
-```
-
-**其他**
-
-注意 JSON 字段的 布尔 类型：如果希望设置一个布尔值而不是，0 或 1，需要在参数占位符后边加上 `IS TRUE` 来表示布尔类型的值
-
-假如 JSON 字段中，存在 Object 类型的字段，那么这个创建的实体是不需要像上面实体定义规则一样定义两个字段（为该实体定义 `orm` 标签本就是无意义的），因为这个实体不是数据表实体，不会直接面都 `bee orm` 的操作层，只有直面的才需要这样处理，才能确保数据能够查询出来
-
 ### 基础
 
 **查询一条（QueryRow）**
@@ -403,29 +408,255 @@ UPDATE xxx SET xxx_info = JSON_SET(IFNULL(xxx_info, JSON_OBJECT(), '$.name', ?, 
 
 `beego orm` 查询多条数据（`QueryRows`）；结果集容器并不需要初始化；在没有查询到数据时，并不会报错
 
-**判断 MySQL 驱动返回的错误类型**
-
-`1.0 orm（或 2.0 adapter/orm）`：应该用 `err == orm.ErrNoRows`、`orm.ErrMultiRows`，而不是取出错误的内容去比较
-
-`2.0 client/orm`：也有定义同名的错误实例
-
 ### 事务
 
 文档作者，在大半年的开发实践中，经常会使用在方法局部开头声明接下来要使用变量的方式，使得代码结构更为工整，提高代码的可读性，其中最常定义（几乎是必声明）的就是 `error` 类型的变量，于是便将原来的基于一个 `bool` 类型事务提交标识值，改为 `error` 类型；实际调用：
 
 ```go
+// 早期
 var err error
-
 ...
-
 o = orm.NewOrm()
 _ = o.Begin()
 defer help.HandlerDBTransaction(o, &err)
-
-repo.NewXxxRepo(o).Xxx......
+...
 ```
 
-### 场景注意
+```go
+// 后来
+var err error
+....
+d := dao.NewXxx(nil)
+d.MustBegin()
+defer d.HandleTx(&err)
+...
+```
+
+### JSON 类型
+
+**查询映射（早期）**
+
+查询 MySQL JSON 类型的数据，Go 中需要使用 string 类型的字段来接收，但是实际都是希望能直接映射到对应结构体类型中。早期只知道手动处理；定义一个冗余字段，存储中间结果，实现数据类型转换。
+
+> beego 实际上要求不严格，所以 orm 标签可以省略
+
+```go
+XxxJSON string `orm:"column(xxx)"`
+Xxx     *Xxx   `orm:"-"`
+```
+
+> sqlx
+
+```go
+XxxJSON string `db:"xxx"`
+Xxx     *Xxx   `db:"-"`
+```
+
+**查询映射（后期）**
+
+```go
+Xxx *Xxx `db:"xxx"`
+
+// sql.Scanner 接口
+func (x *Xxx) Scan(data interface{}) error {
+    // 通用逻辑
+    if data == nil {
+		return nil
+	}
+
+	switch data.(type) {
+	case []byte:
+		return json.Unmarshal(data.([]byte), x)
+	case string:
+		return json.Unmarshal([]byte(data.(string)), x)
+	default:
+		return fmt.Errorf("data type is valid, is %+v", data)
+	}
+}
+```
+
+**条件、字段值映射**
+
+数据表字段类型是 JSON，Go 中只能通过 string 类型的字段去接收。早期，就像上面一样需要定义辅助字段，需要手动处理；后面发现和上面对应的自定义序列化操作。
+
+```go
+Xxx *Xxx `db:"xxx"`
+
+func (x *Xxx) Value() (driver.Value, error) {
+    // 通用逻辑
+    vi := reflect.ValueOf(data)
+	if vi.IsZero() {
+        return nil, nil // 也可以处理成 []byte("{}")
+	}
+	return json.Marshal(data)
+}
+```
+
+**总结**
+
+和三方的框架，dao 层框架都没有关系，驱动相关的包已经定义好了机制和实现拓展。实现了 `sql.Scanner` 和 `driver.Value` 的结构体类型能够 `直接` 作为方法的参数，以及查询出 JSON 能够自动反序列化到结构体中，无需再定义额外的字段、额外的手动处理了。
+
+**题外话**（早期）
+
+> SQL 需要体现出其类型，才能得到理想的结果
+
+```mysql
+# 表字段 json 类型
+CAST(? AS JSON)
+JSON_OBJECT('name', ?, "age", ?)
+
+# json 类型表字段中的 bool 类型
+如果希望设置进一个布尔值而不是，0 或 1，需要在参数占位符后边加上 `IS TRUE` 来表示布尔类型的值
+```
+
+```mysql
+# 更新操作 SQL 层面（不推荐）
+UPDATE xxx
+SET xxx_info = JSON_SET(IFNULL(xxx_info, JSON_OBJECT(), '$.name', ?, '$.age', ?)
+WHERE ...
+
+# 更新操作 代码层面
+UPDATE xxx
+SET xxx_info = CAST(? AS JSON)
+WHERE ...
+```
+
+然后就是有一个容易迷惑的地方，某个 JSON 类型的表字段，实际的结果比较复杂，还嵌套了子结构，要清楚子结构面临的序列化和反序列化操作只有 `json` 类库，和 `sql` 没有关系=
+
+### 多值条件
+
+> 基于 sqlx.In 可以避免繁杂的 sql 拼写，以及参数列表拼装
+
+```go
+func (d *xxxDao) ByIds(ids []int64, status int) ([]models.Xxx, error) {
+	q := `SELECT * FROM xxx WHERE id IN (?) AND status = ?`
+    
+    qi, ai, err := sqlx.In(q, ids, status)
+    if err != nil {
+        return nil, err
+    }
+    
+    var list []models.Xxx
+    err = d.Select(&list, qi, ai...)
+    return list, err
+}
+```
+
+### 批处理
+
+**批量插入**
+
+```go
+// 早期（手动拼接）
+func (r *xxxRepo) BatchInsert(userId int64, xxxs []xxx.Xxx) error {
+    const fieldSum = n
+    one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
+    
+    // sql
+    b := strings.Builder{}
+    b.WriteString(`
+    INSERT 数据库名.表名
+    (字段名1, 字段名2, 字段名3, ..., 字段名n, created_by)
+    VALUES `)
+    b.WriteString(help.JoinRepeat(one, ",", len(xxxs)))
+   
+    // 实际参数
+    params := make([]interface{}, 0, fieldSum*len(xxxs))
+    for _, xxx := range xxxs {
+        params = append(params, xxx.Field1, ..., xxx.Fieldn, userId)
+    }
+
+    _, err := r.Raw(b.String(), params...).Exec()
+    return err
+}
+```
+
+```go
+// 后期 sqlx
+func (u *User) Value() (driver.Value, error) {
+    return []interface{u.Xxx1, u.Xxx2, ..., u.Xxxn, U.createdBy}, nil
+}
+
+func (d *xxxDao) BatchInsert(createdBy int64, users []*models.User) error {
+    q := `
+    INSERT INTO xxx.user
+    (field1, field2, ..., fieldn, created_by)
+    VALUES` + util.JoinRepeat("(?)", len(users))
+    
+    p := make([]interface{}, 0, len(users))
+    for _, v := range users {
+        p = append(p, v)
+    }
+    
+    query, args, err := sqlx.In(q, p...)
+    if err != nil {
+        return err
+    }
+    
+    _, err := d.Exec(query, args...)
+    return err
+}
+```
+
+**批量 插入或更新**
+
+> 为了凸显 SQL 语句的写法
+
+```go
+# 注意：如果表中有其他非空字段，下面这种方式就不好使了（除非手动填一些值）
+# Error 1364: Field 'xxx' doesn't have a default value
+func (r *xxxRepo) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
+    const fieldSum = n
+    one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
+    
+    b := strings.Builder{}
+    b.WriteString(`
+    INSERT 数据库名.表名
+    (id, 字段名1, 字段名2, ..., 字段名n-1)
+    VALUES `)
+    b.WriteString(help.JoinRepeat(one, ",", len(xxxs)))
+    b.WriteString(`
+    ON DUPLICATE KEY
+    UPDATE xxx1 = VALUES(xxx1), ..., xxxn-1 = VALUES(xxxn-1), updated_by = ?`)
+   
+    params := make([]interface{}, 0, fieldSum*len(xxxs))
+    for _, xxx := range xxxs {
+        params = append(params, xxx.Id, xxx.Field1, ..., xxx.Fieldn-1)
+    }
+
+    _, err := r.Raw(b.String(), params, userId).Exec()
+    return err
+}
+```
+
+```go
+func (r *xxx) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
+	const fieldSum = n
+	one := `
+     UNION ALL SELECT ? AS id, ? AS xxx1, ..., ? AS xxxn-1`
+
+	b := strings.Builder{}
+	b.WriteString(`
+	WITH args AS (
+     SELECT
+		? AS id, ? AS xxx1, ..., ? AS xxxn-1`)
+	b.WriteString(help.JoinRepeat(one, "", len(xxxs)-1))
+	b.WriteString(`
+    )
+	UPDATE 库名.表名 a JOIN args USING(id)
+    SET a.xxx1 = args.xxx1, a.updated_by = ?`)
+
+	params := make([]interface{}, 0, fieldSum*len(xxxs))
+	for _, f := range xxxs {
+		params = append(params, f.Id, f.Xxx1)
+	}
+
+	_, err := r.Raw(b.String(), params, userId).Exec()
+	return err
+}
+```
+
+### 业务注意
 
 **查询**
 
@@ -451,7 +682,7 @@ repo.NewXxxRepo(o).Xxx......
 
 **软删除**（`updated_at`、`deleted_by`、`deleted_at`）
 
-- updated_at 会自动更新，但是 updated_by 不更新
+- updated_at 会自动更新，但 updated_by 不会
 
 - 带有 `含有唯一约束的字段` 和 `deleted_by、deleted_at 字段` 的数据：
 
@@ -467,91 +698,6 @@ repo.NewXxxRepo(o).Xxx......
   WHERE
   	id = ?
   ```
-
-
-### 批处理
-
-**批量插入**
-
-```go
-func (r *xxxRepo) BatchInsert(userId int64, xxxs []xxx.Xxx) error {
-    const fieldSum = n
-    one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
-    
-    // sql
-    b := strings.Builder{}
-    b.WriteString(`
-    INSERT 数据库名.表名
-    (字段名1, 字段名2, 字段名3, ..., 字段名n, created_by)
-    VALUES `)
-    b.WriteString(help.JoinRepeat(one, ",", len(xxxs)))
-   
-    // 实际参数
-    params := make([]interface{}, 0, fieldSum*len(xxxs))
-    for _, xxx := range xxxs {
-        params = append(params, xxx.Field1, ..., xxx.Fieldn, userId)
-    }
-
-    _, err := r.Raw(b.String(), params...).Exec()
-    return err
-}
-```
-
-**批量更新**
-
-```go
-# 注意：如果表中有其他非空字段，下面这种方式就不好使了（除非手动填一些值）
-# Error 1364: Field 'xxx' doesn't have a default value
-func (r *xxxRepo) BatchUpdate(userId int64, xxxs []xxx.Xxx) error {
-    const fieldSum = n
-    one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
-    
-    b := strings.Builder{}
-    b.WriteString(`
-    INSERT 数据库名.表名
-    (id, 字段名1, 字段名2, ..., 字段名n-1)
-    VALUES `)
-    b.WriteString(help.JoinRepeat(one, ",", len(xxxs)))
-    b.WriteString(`
-    ON DUPLICATE KEY
-    UPDATE xxx1 = VALUES(xxx1), ..., xxxn-1 = VALUES(xxxn-1), updated_by = ?`)
-   
-    params := make([]interface{}, 0, fieldSum*len(xxxs))
-    for _, xxx := range xxxs {
-        params = append(params, xxx.Id, xxx.Field1, ..., xxx.Fieldn-1)
-    }
-
-    _, err := r.Raw(b.String(), params, userId).Exec()
-    return err
-}
-```
-
-```go
-func (r *xxx) BatchUpdate(userId int64, xxxs []xxx.Xxx) error {
-	const fieldSum = n
-	one := `
-     UNION ALL SELECT ? AS id, ? AS xxx1, ..., ? AS xxxn-1`
-
-	b := strings.Builder{}
-	b.WriteString(`
-	WITH args AS (
-     SELECT
-		? AS id, ? AS xxx1, ..., ? AS xxxn-1`)
-	b.WriteString(help.JoinRepeat(one, "", len(xxxs)-1))
-	b.WriteString(`
-    )
-	UPDATE 库名.表名 a JOIN args USING(id)
-    SET a.xxx1 = args.xxx1, a.updated_by = ?`)
-
-	params := make([]interface{}, 0, fieldSum*len(xxxs))
-	for _, f := range xxxs {
-		params = append(params, f.Id, f.Xxx1)
-	}
-
-	_, err := r.Raw(b.String(), params, userId).Exec()
-	return err
-}
-```
 
 ### 主库
 
