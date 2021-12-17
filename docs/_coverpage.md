@@ -4,7 +4,7 @@
 
 # 后端规范文档 <small>1.0</small>
 
-> 在历经 beego 1.0、beego 2.0、gin 一个 Golang 后端 Web 开发的积累总结
+> 在历经 beego 1.0、beego 2.0、gin 一个 Go Web 后端开发的积累总结
 
 - 最佳实践
 - 业务点、技术点
