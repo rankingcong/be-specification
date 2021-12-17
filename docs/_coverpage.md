@@ -1,5 +1,6 @@
 <!-- _coverpage.md -->
-![logo](_coverpage.assets/63767045)
+<!--![logo](_coverpage.assets/63767045)-->
+![logo](https://pkg.go.dev/static/shared/icon/favicon.ico)
 
 # 后端规范文档 <small>1.0</small>
 
