@@ -23,6 +23,20 @@ go 中不推荐空格的源码编排风格，go fmt 命令会将所有的空格�
 - 注释 `\\` 和注释内容之间都应该有一个空格
 - `conf` 配置文件中支持的注释语法有两种 `#` `;`，约定前者为大模块注释，后者为小模块注释
 
+### 注释（GoDoc）
+
+[参照]: https://go.dev/blog/godoc
+
+开发者应遵从，Go 文档规范，即所有方法头注释都应该遵从这样格式的注释：
+
+`// 方法名 注释内容`
+
+**过期**
+
+当某些方法需要更新，负责更新的开发人员应当在旧的方法实现上添加这样格式的注释：
+
+`// Deprecated: 过期原因 新的实现位置`
+
 ## 类型规范
 
 ### 枚举
@@ -351,30 +365,6 @@ type IdEnum int64
 
 部门现在正在尝试 `ApiFox`、`ApiPost` 等接口管理的三方解决方案
 
-## 数据表设计
-
-### ORM 映射
-首先提及一个 `GROOVY` 脚本文件 `Copy as Go struct.groovy`（由关关创建编写和维护）
-
-**作用**：将数据库表作为脚本的参数从而可以得到对应的 beego 的 orm 实体定义
-
-**脚本使用**：将脚本文件放置到 Goland 项目的 `(a)` 目录下，然后通过 Goland 自带的 DB 连接工具，连接到指定的数据库，通过 `(b)` 操作应用运行脚本
-
-> (a) /Scratches and Consoles/Extensions/Database Tools and SQL/schema/Copy as Go struct.groovy
-
-> (b) 框选想要操作的表 → 右键 → Scripted Extensions → Copy as Go struct.groovy → 剪切板中就存有了实体定义
-
-**具体规则**
-
-| 维度         | 概念                                                         |
-| ------------ | ------------------------------------------------------------ |
-| 整型键       | GO 类型：int64、MySQL 类型：int                              |
-| 字段是否为空 | GO 语言中所有基础数据类型都有零值，所以当要表示无意义的空值时，应将字段类型改为特定类型对应的指针类型 |
-| 枚举         | 得到枚举名称 → SELECT xxx<br />得到枚举序号 → SELECT xxx + 0 AS xxx |
-
-[beego]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20beego.groovy
-[sqlx]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20sqlx.groovy
-
 ## Service
 
 **树型节点**
@@ -384,6 +374,29 @@ type IdEnum int64
 `FindById(id int64, expectLevel ...int) (*models.Xxx, error)`
 
 ## Dao
+
+### 定义实体（models）
+
+传统项目的开发流程是：了解业务需求 → 表设计 → 编写接口文档 → 前后端并行开发，而在后端开发的时候，无可避免的需要为每一张表创建对应的 Go 结构体，即表实体。
+
+这里提及一个 `GROOVY` 脚本文件的使用，来避免重复枯燥的工作，`Copy as Go struct.groovy`，可以直接生成数据表对应的 Go 中的实体定义源码。
+
+将脚本文件放置到 Goland 项目的 `(a)` 目录下，然后通过 Goland 自带的 DB 连接工具，连接到指定的数据库，通过 `(b)` 操作应用运行脚本。
+
+> (a) /Scratches and Consoles/Extensions/Database Tools and SQL/schema/Copy as Go struct.groovy
+
+> (b) 框选想要操作的表 → 右键 → Scripted Extensions → Copy as Go struct.groovy → 剪切板中就存有了实体定义
+
+[beego]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20beego.groovy
+[sqlx]: https://github.com/shanghairanking/docs/blob/main/3.%E6%95%B0%E6%8D%AE%E5%BA%93/Copy%20as%20Go%20struct%20sqlx.groovy
+
+**业务规则**
+
+|          | 概念                                                         |
+| -------- | ------------------------------------------------------------ |
+| 整型主键 | GO 类型：int64、MySQL 类型：int                              |
+| 枚举     | 得到枚举名称 → SELECT xxx<br />得到枚举序号 → SELECT xxx + 0 AS xxx |
+| 是否为空 | GO 语言中所有基础数据类型都有对应类型的零值，所以当要表示无意义的空值时，应将字段类型改为特定类型对应的指针类型；在 dao 框架的映射行为上，sqlx 要求强类型对应，而 beego 默认零值转换兼容。 |
 
 ### 基础
 
@@ -549,7 +562,7 @@ func (d *xxxDao) ByIds(ids []int64, status int) ([]models.Xxx, error) {
 
 ```go
 // 早期（手动拼接）
-func (r *xxxRepo) BatchInsert(userId int64, xxxs []xxx.Xxx) error {
+func (r *xxxRepo) BatchInsert(xxxs []xxx.Xxx) error {
     const fieldSum = n
     one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
     
@@ -564,7 +577,7 @@ func (r *xxxRepo) BatchInsert(userId int64, xxxs []xxx.Xxx) error {
     // 实际参数
     params := make([]interface{}, 0, fieldSum*len(xxxs))
     for _, xxx := range xxxs {
-        params = append(params, xxx.Field1, ..., xxx.Fieldn, userId)
+        params = append(params, xxx.Field1, ..., xxx.Fieldn, xxx.CreatdBy)
     }
 
     _, err := r.Raw(b.String(), params...).Exec()
@@ -578,7 +591,7 @@ func (u *User) Value() (driver.Value, error) {
     return []interface{u.Xxx1, u.Xxx2, ..., u.Xxxn, U.createdBy}, nil
 }
 
-func (d *xxxDao) BatchInsert(createdBy int64, users []*models.User) error {
+func (d *xxxDao) BatchInsert(users []*models.User) error {
     q := `
     INSERT INTO xxx.user
     (field1, field2, ..., fieldn, created_by)
@@ -595,6 +608,17 @@ func (d *xxxDao) BatchInsert(createdBy int64, users []*models.User) error {
     }
     
     _, err := d.Exec(query, args...)
+    return err
+}
+
+func (d *xxxDao) NamedBatchInsert(users []*models.User) error {
+    q := `
+    INSERT INTO xxx.user
+    	(field1, field2, ..., fieldn, created_by)
+    VALUES
+    	(:field1, :field2, ..., :fieldn, :created_by)`
+    
+    _, err := d.NamedExec(query, users)
     return err
 }
 ```
@@ -704,11 +728,53 @@ func (r *xxx) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
 
 如果项目中有用到主库的数据，要注意和项目关联较大库的查询表名前边一定要带有库名
 
-目前项目的主库有两个：`univ_ranking_a` 和 `univ_ranking_b`，这两个库是一模一样的，只是说哪个库导入了新的数据，就应该被切换为线上实际使用的，所以是轮番切换使用的；这样做也是避免直接更新线上数据库带来的种种弊端且能实现线上应用的快速切库，和备份数据的效果。
+目前项目的主库有两个：`univ_a` 和 `univ_b`，这两个库是一模一样的，只是说哪个库导入了新的数据，就应该被切换为线上实际使用的，所以是轮番切换使用的；这样做也是避免直接更新线上数据库带来的种种弊端且能实现线上应用的快速切库，和备份数据的效果。
 
 对于应用来说，切换数据库就是修改配置文件中配置的数据库名（默认这些数据库都是存放在一个 MySQL 服务端程序中的），因为查询中没有指定数据库名的表查询，默认就是应用这个数据库，为了实现综上所述，在进行和项目应用本身相关程度比较大的那个数据库的查询的表名前面应该都带上这个数据库的名称，具体表现在 `FROM` 和 `JOIN` 关键字后边的表名
 
 > 现采用了 公共资源服务实例 和 动态表名 机制来处理这样的数据变更、切换机制了
+
+## 日志规范
+
+后端开发，经常需要处理各种异常和错误情况：
+
+业务逻辑：数据状态不符合特定的接口调用场景，代码中主动报出的错误
+
+常见类库：`json.Marshal`、`strconv.ParseInt`
+
+中间件依赖：`sql.DB.Exec`（MySQL）、`redis.Bool`（Redis）
+
+当发现这些错误，健全的后端程序，应该将上下文环境，以及具体的错误信息以日志的形式打印出来，并将包装后的错误信息返回给前端（不能将真实错误情况返回，保证后台安全），错误信息有对应业务场景的、也有后端程序代码无法处理的，如 MySQL 挂了，无法处理的情况下，接口应当返回，类似 `请联系管理员` 的信息。
+
+**健全的日志样例**
+
+```go
+func (s *xxxService) Func(param1 int, param2 string) (interface{}, error) {
+    // ...
+    
+    // dao 查询
+    if err != nil {
+        return nil, log.ErrorW("查询巴拉巴拉出错|系统异常，请联系管理员", fmt.Sprintf("[param1:%d] [param2:%s]", param1, param2))
+    }
+    
+    // ...
+    
+    // 业务出错
+    if !exists {
+        return nil, log.ErrorW("参数非法|巴拉巴拉异常", fmt.Sprintf("不存在巴拉巴拉 [param1:%d] [param2:%s]", param1, param2))
+    }
+}
+```
+
+**日志级别**
+
+Debug（常见）：目前仅用于非生产模式下的 MySQL 语法打印、测试调试
+
+Info（较少）：业务中比较重要的流程、三方接口调用的请求和响应。
+
+Warn（极少）：某些数据或者业务条件出现异常情况，但是需要保证业务流程，所以会进行一些特殊处理，此时比较适合该级别的日志打印。
+
+Error（常见）：任何预期内和预期外都应该进行该级别的日志打印。
 
 ## 构建部署
 
@@ -717,8 +783,6 @@ func (r *xxx) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
 目前暂未有这样的问题，故项目的部署更新模式，还是以全过程手动操作为主。
 
 服务器上的项目部署更新，要求有一个好习惯，就是将一定时间内的二进制程序包，保留下来，以应对新程序包出问题时，能够立马回滚，保证服务的可用。
-
-综上，参考当前项目中的 `buildupx.bat` 构建脚本（Windows 操作系统下，可直接运行）
 
 ```
 @echo off
