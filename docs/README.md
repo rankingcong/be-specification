@@ -146,9 +146,11 @@ type IdEnum int64
 
 ### 文件命名
 
-不应该有如：`包名_文件名.go` 或 `文件名_包名.go` 的命名风格
+不应该有如：`包名_文件名.go` 或 `文件名_包名.go` 的命名风格。
 
-如希望代表 `xxx` 模块的接口定义文件，应该命名为 `i_xxx.go`
+如希望代表 `xxx` 模块的接口定义文件，应该命名为 `i_xxx.go`。
+
+模块包的入口或核心源码文件，应该以模块名命名，而不是譬如 `core.go`。
 
 ### 通道变量名
 
@@ -450,7 +452,9 @@ defer d.HandleTx(&err)
 
 **查询映射（早期）**
 
-查询 MySQL JSON 类型的数据，Go 中需要使用 string 类型的字段来接收，但是实际都是希望能直接映射到对应结构体类型中。早期只知道手动处理；定义一个冗余字段，存储中间结果，实现数据类型转换。
+查询 MySQL JSON 类型的数据，对于 Go 中大多数的 ORM 框架，都可以使用 string 类型的字段来接收，实际上，也只有 string 类型能够接收 JSON 的结果，JSON 字符串嘛。
+
+但是实际都是希望能直接映射到对应结构体类型中。早期只知道手动处理；定义一个冗余字段，存储中间结果，实现数据类型转换。
 
 > beego 实际上要求不严格，所以 orm 标签可以省略
 
@@ -466,43 +470,64 @@ XxxJSON string `db:"xxx"`
 Xxx     *Xxx   `db:"-"`
 ```
 
-**查询映射（后期）**
+**反序列化**（帮助方法）
 
 ```go
 Xxx *Xxx `db:"xxx"`
 
 // sql.Scanner 接口
-func (x *Xxx) Scan(data interface{}) error {
+func (x *Xxx) Scan(src interface{}) error {
     // 通用逻辑
-    if data == nil {
+    if src == nil {
 		return nil
 	}
 
-	switch data.(type) {
+    switch v := data.(type) {
 	case []byte:
-		return json.Unmarshal(data.([]byte), x)
+		return json.Unmarshal(v, x)
 	case string:
-		return json.Unmarshal([]byte(data.(string)), x)
+		return json.Unmarshal([]byte(v), x)
 	default:
 		return fmt.Errorf("data type is valid, is %+v", data)
 	}
 }
 ```
 
-**条件、字段值映射**
+**序列化**
 
 数据表字段类型是 JSON，Go 中只能通过 string 类型的字段去接收。早期，就像上面一样需要定义辅助字段，需要手动处理；后面发现和上面对应的自定义序列化操作。
 
 ```go
 Xxx *Xxx `db:"xxx"`
 
-func (x *Xxx) Value() (driver.Value, error) {
-    // 通用逻辑
-    vi := reflect.ValueOf(data)
+// Value for driver.Valuer helper
+// 假如表字段类型是 JSON，那么这里具体返回 []byte 或 string 类型都可以
+func Value(def string, data interface{}) (interface{}, error) {
+	vi := reflect.ValueOf(data)
 	if vi.IsZero() {
-        return nil, nil // 也可以处理成 []byte("{}")
+		return []byte(def), nil
 	}
 	return json.Marshal(data)
+}
+
+func ValueNil(data interface{}) (interface{}, error) {
+	vi := reflect.ValueOf(data)
+	if vi.IsZero() {
+		return nil, nil
+	}
+	return json.Marshal(data)
+}
+
+func ValueEmpty(data interface{}) (interface{}, error) {
+	return Value("", data)
+}
+
+func ValueObj(data interface{}) (interface{}, error) {
+	return Value("{}", data)
+}
+
+func ValueArr(data interface{}) (interface{}, error) {
+	return Value("[]", data)
 }
 ```
 
@@ -535,7 +560,133 @@ SET xxx_info = CAST(? AS JSON)
 WHERE ...
 ```
 
-然后就是有一个容易迷惑的地方，某个 JSON 类型的表字段，实际的结果比较复杂，还嵌套了子结构，要清楚子结构面临的序列化和反序列化操作只有 `json` 类库，和 `sql` 没有关系=
+**最佳实践**（嵌套复杂样例）
+
+如果对着点来说，太复杂了，直接上实例
+
+[表]
+
+```mysql
+CREATE TABLE xxx (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    name        VARCHAR(50) NOT NULL COMMENT '名称',
+    detail      JSON DEFAULT '{}' COMMENT '详情',
+    field       JSON NOT NULL COMMENT '属性',
+    create_time DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',  
+    update_time DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+);
+```
+
+[实体]
+
+```go
+type Xxx struct {
+    Id         int64     `db:"id"`
+    Name       string    `db:"name"`
+    Detail     *Detail   `db:"detail"`
+    Field      Field     `db:"field"`
+    CreateTime time.Time `db:"create_time"`
+    UpdateTime time.Time `db:"update_time"`
+}
+
+// 实现 driver.Valuer 决定保存时，入库的字段参数
+func (x *Xxx) Value() (interface{}, error) {
+    return []interface{}{x.Name, X.Detail, x.Field}, nil
+}
+
+// 不能实现 sql.Scanner，否则会在查询一条数据时
+// github.com/jmoiron/sqlx@v1.3.1/sqlx.go:759 返回错误
+
+type (d *Detail) Scan(src interface{}) error {
+    // 需要处理 nil 的情况，并且当前字段本来就可以为 nil
+    // if src == nil {
+    //    return nil
+    // }
+    // 实际上就应该认定 src 为 []byte 类型，值是一个 JSON 串
+    // return json.Unmarshal(src.([]byte), d)
+    
+    // 但是，封装好了一个专门的方法，能够合理的应对各种各样的场景
+    // 也就是上面的 Scan 方法，该方法甚至可以处理 string 类型，但是值为 JSON
+    // 当然，真有这种情况，Value 方法也应该做对应的处理了
+    return Scan(src, d)
+}
+
+// 注意 receiver 不应该带 *
+type (d Detail) Value() (driver.Valuer, error) {
+    // 同上，也有定义好的方法
+    // 主要目的就是让 json 类型的值入库，对应上
+    // 然后，就是说 Detail 真实的类型
+    // []xxx → []
+    // struct → {}
+    // *struct → <nil>
+    // 自定义："[0]"（各种自定义逻辑都行）
+    return ValueNil(d)
+}
+
+type Field struct {
+    FieldInfo FieldInfo `db:"fieldInfo" json:"fieldInfo"`
+}
+
+func (f *Field) Scan(src interface{}) error {
+    return Scan(src, f)
+}
+
+func (f Field) Value() (driver.Value, error) {
+    return ValueObj(f)
+}
+
+// 假如实体中的 JSON 类型的字段中并都是基础类型，还嵌套着 Object 或是 Array
+// 那么就还需要继续定义实体
+
+type FieldInfo struct{...}
+
+// 如果有自定义数据格式逻辑 + 会有数据表实体的 field 字段查询
+// 应该为 Field struct 的 FieldInfo 字段定义 json 标签
+// 应该实现 json.Unmarshaler 接口，在里边定义自定义反序列化逻辑
+
+// 如果有自定义数据格式逻辑 + 特殊的该字段查询（SELECT field ->> ‘$.fieldDetail’）
+// 应该为 Field struct 的 FieldInfo 字段定义 db 标签
+// 那就应该实现 sql.Scanner 接口，在里边定义自定义反序列化逻辑
+```
+
+**最佳实践**（特殊逻辑样例）
+
+```go
+// versions 在数据库中定义的数据含义是，用英文逗号隔开的年月，如 "2020-01,2021-01,2022-01"；非空，默认空串
+// 而实际代码程序中，希望直接操作 []int 这样的类型，所以就需要我们自定义 序列化 和 反序列化 过程了
+
+type Xxx struct {
+    Versions CommaSlice `db:"versions"`
+}
+
+type CommaSlice []string
+
+func (c *CommaSlice) Scan(src interface{}) error {
+    *c := strings.Split(src.(string), ",")
+    return nil
+}
+
+func (c CommaSlice) Value() (driver.Value, error) {
+    if c == nil {
+        return []byte(""), nil
+    }
+    return []byte(strings.Join(c, ",")), nil
+}
+```
+
+**总结**
+
+`json.Unmarshaler`、`json.Marshaler`
+
+`sql.Scanner`、`driver.Valuer`
+
+基层框架代码设计对这些接口的支持，我们应该通过它们，在程序代码中实现好，这些类型里包含的业务逻辑。
+
+自定义序列化逻辑，利用好：`json.Marshaler`、`driver.Valuer`
+
+自定义反序列化逻辑，利用好：`json.Unmarshaler`、`sql.Scanner`
+
+（自定义接口方法实现都有两个，具体应该实现哪个，视业务的查询的背景，视实体在表实体中所处的层级）
 
 ### 多值条件
 
@@ -772,7 +923,7 @@ Debug（常见）：目前仅用于非生产模式下的 MySQL 语法打印、�
 
 Info（较少）：业务中比较重要的流程、三方接口调用的请求和响应。
 
-Warn（极少）：某些数据或者业务条件出现异常情况，但是需要保证业务流程，所以会进行一些特殊处理，此时比较适合该级别的日志打印。
+Warn（极少）：当接口请求参数没有通过校验、某些数据或者业务条件出现异常情况，但是需要保证业务流程，所以会进行一些特殊处理，此时比较适合该级别的日志打印。
 
 Error（常见）：任何预期内和预期外都应该进行该级别的日志打印。
 
