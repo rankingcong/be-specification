@@ -130,6 +130,10 @@ type IdEnum int64
 ...
 ```
 
+**其他**
+
+因为拓展方法的必要，通过重复的劳动力实现太过低效，笔者通过参考 Go 官方的 stringer，实现了一个自定义的枚举辅助方法生成工具，待工具开源到 GitHub 上，这里会贴出链接。
+
 ## 命名规范
 
 ### 包名
@@ -144,7 +148,7 @@ type IdEnum int64
 
 不希望，也不应该对外暴露的包，应该将其命名为 `internal`
 
-### 文件命名
+### 文件名
 
 不应该有如：`包名_文件名.go` 或 `文件名_包名.go` 的命名风格。
 
@@ -158,9 +162,25 @@ type IdEnum int64
 
 通道传输的数据有实际含义时，命名为：`xxxChan`
 
-### 三层方法命名
+### 三层命名
 
-#### DAO
+```
+type XxxController struct
+(c *XxxController)
+
+type xxxService struct
+type XxxService interface
+func NewXxx() XxxService
+(s *xxxService)
+
+type xxxDao struct
+func NewXxx() *xxxDao
+(d *xxxDao)
+```
+
+> xxx 后面的层可以省略？最好不要省略，因为枚举定义规范中，包名就是其业务概念名，即 `xxx.Enum` 会和结构体 `type xxx struct` 发生名称冲突，否则，只能在引用的地方给包名取别名，造成开发上的思想负担
+
+**DAO 方法**
 
 - 查询的是单条还是列表，从特殊标识和表约束看出 → 不在方法名中体现。
 
@@ -170,9 +190,9 @@ type IdEnum int64
 
 - 此外，查询数据或者逻辑较为复杂（同时查询出最大值 或者 包含存储过程、CTE 等），方法命名只要遵从标识业务模块的效果就行
 
-#### Service
+**Service 方法**
 
-- 如果是DAO 方法封装（List → Map、包装了错误信息），一般命名同封装的方法名
+- 如果是 DAO 方法封装（List → Map、包装了错误信息），一般命名同封装的方法名
 - 除此之外（拼装业务数据，调用其他多个模块的数据查询），命名同业务名
 
 **举例**
@@ -185,21 +205,11 @@ type IdEnum int64
 
 更新：`UpdateOne`
 
-### Receiver 命名
-
-**三层**
-
-`type XxxController struct`、`（c *XxxController）`
-
-`type xxxService struct`、`（s *xxxService）`、`type XxxService interface`、`NewXxxService XxxService`
-
-`type xxxDao struct`、`（d *xxxDao）`、`NewXxxDao *xxxDao`
-
-> xxx 后面的层可以省略？最好不要省略，因为枚举定义规范中，包名就是其业务概念名，即 `xxx.Enum` 会和结构体 `type xxx struct` 发生名称冲突，只能在引用的地方给包名取别名
+### 其他
 
 **接口参数实体**
 
-`Xxx struct（f *Xxx）`
+`type Xxx struct`、`(f *Xxx)`
 
 **SQL**
 
@@ -240,40 +250,36 @@ type IdEnum int64
 
 ### Gin
 
-|            | 必须  | 说明                                                         |
-| ---------- | ----- | ------------------------------------------------------------ |
-| base       | true  | 和业务无关的基础模块父目录                                   |
-| - config   | true  | 配置文件到  Go struct 实例映射                               |
-| - constant | true  | 枚举、常量                                                   |
-| - dao      | true  | MySQL 数据交互（基于 sqlx 封装了 事务、日志、自定义错误处理、动态 sql 拓展） |
-| - errs     | true  | 通用错误定义、处理                                           |
-| - filter   | true  | 拦截器（鉴权、IP 白名单、请求日志打印）                      |
-| - log      | true  | 基于 zap 的日志模块（包含请求日志的打印方法）                |
-| - server   | true  | 项目启动（grace close）                                      |
-| - validate | true  | 对于有繁多的数据校验需求，可以使用该模块来简化开发流程       |
-| cache      | false | 内存缓存；某些数据在逻辑上相当重要，使用频繁，作为单独的数据模块进行管理 |
-| controller | true  |                                                              |
-| service    | true  |                                                              |
-| dao        | true  |                                                              |
-| model      | true  |                                                              |
-| - do       | false | 数据表实体；一定有 db 标签，可以没有 json 标签               |
-| - bo       | false | 业务实体；可以有 json 标签                                   |
-| - dto      | false | 接口响应实体；一定有 json 标签（当 dto 需要被多处引用时，应该将其提升为 bo） |
-| - form     | false | 接口参数实体；有 uri 或 json 标签（不推荐 form，即表单，除非是文件上传场景） |
-| - const    | false | 之所以使用关键字作为包名是希望子级都单独创建包               |
-| module     | false | 业务模块；service 不允许引用 module，避免循环依赖问题        |
-| router     | true  | controller 的注册中心                                        |
-| util       | true  | 和业务无关的工具类                                           |
+|              | 必须  | 说明                                                         |
+| ------------ | ----- | ------------------------------------------------------------ |
+| base         | true  | 和业务无关的基础模块父目录                                   |
+| - config     | true  | 配置文件到  Go struct 实例映射                               |
+| - constants  | true  | 枚举、常量                                                   |
+| - dao        | true  | MySQL 数据交互（基于 sqlx 封装了 事务、日志、自定义错误处理、动态 sql 拓展） |
+| - errs       | true  | 通用错误定义、处理                                           |
+| - middleware | true  | 拦截器（鉴权、IP 白名单、请求日志打印）                      |
+| - log        | true  | 基于 zap 的日志模块（包含请求日志的打印方法）                |
+| - server     | true  | 项目启动（grace close）                                      |
+| - validate   | true  | 对于有繁多的数据校验需求，可以使用该模块来简化开发流程       |
+| cache        | false | 内存缓存；某些数据在逻辑上相当重要，使用频繁，作为单独的数据模块进行管理 |
+| constants    | true  | 业务常量、枚举；该包下一般不应该直接放置具体内容，应该放在子包下 |
+| controllers  | true  |                                                              |
+| service      | true  |                                                              |
+| dao          | true  |                                                              |
+| models       | true  |                                                              |
+| - do         | false | 数据表实体；一定有 db 标签，可以没有 json 标签               |
+| - bo         | false | 业务实体；可以有 json 标签                                   |
+| - dto        | false | 接口响应实体；一定有 json 标签（当 dto 需要被多处引用时，应该将其提升为 bo） |
+| - form       | false | 接口参数实体；有 uri 或 json 标签（不推荐 form，即表单，除非是文件上传场景） |
+| modules      | false | 业务模块；module不允许引用 service，避免发生循环依赖问题     |
+| router       | true  | controller 的注册中心                                        |
+| util         | true  | 和业务无关的工具类                                           |
 
-**改进方向**
+`config` 考虑引入配置中心，动态配置刷新因为涉及 dao 实例更新，所以有些麻烦...
 
-`config` 含有业务概念
+`errs`  自定义错误类型，全局的和前端的错误码交互
 
-`errs`  含有业务概念
-
-`filter` 含有业务概念
-
-`validate` 属于工具
+`validate` 默认使用的模块，太好用了
 
 ### Go-Zero（TODO）
 
@@ -317,7 +323,17 @@ type IdEnum int64
 
 > gin
 
-基于 gin 现有的基础模块 `base/controller.go` 已经封装好了，直接可以使用的接口参数校验方法；集成中文和英文两种翻译规则的翻译，以及自定义校验标签的集成拓展
+基于 gin 现有的基础模块 `base/controller.go` 已经封装好了，直接可以使用的接口参数校验方法；集成中文和英文两种翻译规则的翻译，以及自定义校验标签的集成拓展（不完全，仅一级）
+
+如果接口参数比较复杂，还是非常推荐将参数都通过为参数实体的字段定义标签的方式反序列化实体得到。
+
+`form`：`请求方式：GET` | `Content-Type：multipart/form-data` | `参数位置：Query`
+
+`json`：`application/json`
+
+`uri`：`参数位置：Path`
+
+`header`：`参数位置：Header`
 
 ## 接口文档
 
@@ -377,7 +393,7 @@ type IdEnum int64
 
 ## Dao
 
-### 定义实体（models）
+### 定义实体（do）
 
 传统项目的开发流程是：了解业务需求 → 表设计 → 编写接口文档 → 前后端并行开发，而在后端开发的时候，无可避免的需要为每一张表创建对应的 Go 结构体，即表实体。
 
@@ -707,12 +723,11 @@ func (d *xxxDao) ByIds(ids []int64, status int) ([]models.Xxx, error) {
 }
 ```
 
-### 批处理
+### 批量插入
 
-**批量插入**
+**早期 Beego 拼 SQL**
 
 ```go
-// 早期（手动拼接）
 func (r *xxxRepo) BatchInsert(xxxs []xxx.Xxx) error {
     const fieldSum = n
     one := `(` + help.OrmJoinRepeat(fieldSum) + `)`
@@ -736,8 +751,9 @@ func (r *xxxRepo) BatchInsert(xxxs []xxx.Xxx) error {
 }
 ```
 
+**后期 sqlx**
+
 ```go
-// 后期 sqlx
 func (u *User) Value() (driver.Value, error) {
     return []interface{u.Xxx1, u.Xxx2, ..., u.Xxxn, U.createdBy}, nil
 }
@@ -762,15 +778,23 @@ func (d *xxxDao) BatchInsert(users []*models.User) error {
     return err
 }
 
-func (d *xxxDao) NamedBatchInsert(users []*models.User) error {
+// 对实体是否实现 driver.Valuer 没有要求，但是相应的字段一定要有对应的 db 标签
+func (d *xxxDao) NamedBatchInsert(users []*do.User) (int64, error) {
     q := `
     INSERT INTO xxx.user
     	(field1, field2, ..., fieldn, created_by)
     VALUES
     	(:field1, :field2, ..., :fieldn, :created_by)`
     
-    _, err := d.NamedExec(query, users)
-    return err
+    res, err := d.NamedExec(query, users)
+    if err != nil {
+        return 0, err
+    }
+    id, err := res.LastInsertId()
+    if err != nil {
+        return 0, err
+    }
+    return id, nil
 }
 ```
 
@@ -793,11 +817,11 @@ func (r *xxxRepo) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
     b.WriteString(help.JoinRepeat(one, ",", len(xxxs)))
     b.WriteString(`
     ON DUPLICATE KEY
-    UPDATE xxx1 = VALUES(xxx1), ..., xxxn-1 = VALUES(xxxn-1), updated_by = ?`)
+    UPDATE 字段名1 = VALUES(字段名1), ..., 字段名n-1 = VALUES(字段名n-1), updated_by = ?`)
    
     params := make([]interface{}, 0, fieldSum*len(xxxs))
-    for _, xxx := range xxxs {
-        params = append(params, xxx.Id, xxx.Field1, ..., xxx.Fieldn-1)
+    for _, v := range xxxs {
+        params = append(params, v.Field1, ..., v.Fieldn-1)
     }
 
     _, err := r.Raw(b.String(), params, userId).Exec()
@@ -823,8 +847,8 @@ func (r *xxx) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
     SET a.xxx1 = args.xxx1, a.updated_by = ?`)
 
 	params := make([]interface{}, 0, fieldSum*len(xxxs))
-	for _, f := range xxxs {
-		params = append(params, f.Id, f.Xxx1)
+	for _, v := range xxxs {
+		params = append(params, v.Id, ..., v.Xxxn-1)
 	}
 
 	_, err := r.Raw(b.String(), params, userId).Exec()
@@ -884,6 +908,10 @@ func (r *xxx) BatchUpsert(userId int64, xxxs []xxx.Xxx) error {
 对于应用来说，切换数据库就是修改配置文件中配置的数据库名（默认这些数据库都是存放在一个 MySQL 服务端程序中的），因为查询中没有指定数据库名的表查询，默认就是应用这个数据库，为了实现综上所述，在进行和项目应用本身相关程度比较大的那个数据库的查询的表名前面应该都带上这个数据库的名称，具体表现在 `FROM` 和 `JOIN` 关键字后边的表名
 
 > 现采用了 公共资源服务实例 和 动态表名 机制来处理这样的数据变更、切换机制了
+
+## 测试用例
+
+任何 通用模块（与业务解耦）、工具方法，都应该提供基础使用和注意点文档说明，并给出相应的测试用例。
 
 ## 日志规范
 
